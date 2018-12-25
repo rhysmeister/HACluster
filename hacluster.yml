@@ -1,0 +1,108 @@
+---
+  - hosts: all
+    gather_facts: yes
+    become: yes
+    vars:
+      host_list: ""
+      clustering_packages:
+        - corosync
+        - pacemaker
+        - pcs
+      cluster_name: hacluster
+      floating_ip: 192.168.44.99
+
+    tasks:
+
+    - name: Ensure /etc/hosts is setup
+      template:
+        src: hosts.j2
+        dest: /etc/hosts
+
+    - name: Update ca certs
+      yum:
+        name: ca-certificates
+        state: latest
+
+    - name: Ensure epel is available
+      yum:
+        name: epel-release
+        state: present
+
+    - name: Install nginx webserver
+      yum:
+        name: nginx
+        state: present
+
+    - name: Ensure nginx service is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Ensure clustering software is installed
+      yum:
+        name: "{{ clustering_packages }}"
+        state: present
+
+    - name: Ensure the pcs service is enabled
+      service:
+        name: pcsd
+        state: started
+        enabled: yes
+
+    - name: Ensure the password for the hacluster user is syncronised
+      user:
+        name: hacluster
+        password: "{{ 'SecretPasswordReallyShouldbeinVault' | password_hash('sha512', 'mysecretsalt') }}"
+
+    - name: Setup list of cluster hosts
+      set_fact:
+        host_list: "{{ host_list }}{{ (play_hosts.index(item) == 0) | ternary('',' ') }}{{ item }}"
+      loop: "{{ play_hosts }}"
+      run_once: yes
+
+    - debug:
+        var: host_list
+      run_once: yes
+
+    - name: Setup the cluster authentication
+      shell: pcs cluster auth {{ host_list }} -u hacluster -p SecretPasswordReallyShouldbeinVault --force && touch cluster_auth.success
+      args:
+        creates: cluster_auth.success
+      #when: ansible_hostname == 'cnode1'
+
+    - name: Setup the cluster
+      shell: pcs cluster setup --name {{ cluster_name }} {{ host_list }} && touch cluster.success
+      args:
+        creates: cluster.success
+      #when: ansible_hostname == 'cnode1'
+
+    - name: Enable all cluster services
+      shell: pcs cluster enable --all && touch cluster_enabled.success
+      args:
+        creates: cluster_enabled.success
+
+    - name: Ensure the cluster services have started the first time
+      shell: pcs cluster start --all && touch cluster_services.success
+      args:
+        creates: cluster_services.success
+
+    - name: Add a floating ip
+      shell: pcs resource create floating_ip ocf:heartbeat:IPaddr2 ip={{ floating_ip }} cidr_netmask=24 op monitor interval=60s && touch floating_ip.success
+      args:
+        creates: floating_ip.successs
+      #when: ansible_hostname == 'cnode1'
+
+    - name: Add http server resource
+      shell: pcs resource create http_server ocf:heartbeat:nginx configfile="/etc/nginx/nginx.conf" op monitor timeout="20s" interval="60s" && touch http.success
+      args:
+        creates: http.success
+      #when: ansible_hostname == 'cnode1'
+
+    - firewalld:
+        service: "{{ item }}"
+        permanent: yes
+        state: enabled
+      with_items:
+        - http
+        - high-availability
