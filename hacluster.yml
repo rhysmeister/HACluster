@@ -33,11 +33,11 @@
         name: nginx
         state: present
 
-    - name: Ensure nginx service is running
-      service:
-        name: nginx
-        state: started
-        enabled: yes
+    #- name: Ensure nginx service is running
+    #  service:
+    #    name: nginx
+    #    state: started
+    #    enabled: yes
 
     - name: Ensure clustering software is installed
       yum:
@@ -116,3 +116,8 @@
       shell: pcs property set no-quorum-policy=ignore && touch no_quorum.success
       args:
         creates: no_quorum.success
+
+    - name: Ensure page for each node exists
+      copy:
+        content: This is the default page for {{ ansible_hostname }}
+        dest: /usr/share/nginx/html/index.html
