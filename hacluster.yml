@@ -46,12 +46,6 @@
         name: nginx
         state: present
 
-    #- name: Ensure nginx service is running
-    #  service:
-    #    name: nginx
-    #    state: started
-    #    enabled: yes
-
     - name: Ensure clustering software is installed
       yum:
         name: "{{ clustering_packages }}"
@@ -82,13 +76,11 @@
       shell: pcs cluster auth {{ host_list }} -u hacluster -p SecretPasswordReallyShouldbeinVault --force && touch cluster_auth.success
       args:
         creates: cluster_auth.success
-      #when: ansible_hostname == 'cnode1'
 
     - name: Setup the cluster
       shell: pcs cluster setup --name {{ cluster_name }} {{ host_list }} && touch cluster.success
       args:
         creates: cluster.success
-      #when: ansible_hostname == 'cnode1'
 
     - name: Enable all cluster services
       shell: pcs cluster enable --all && touch cluster_enabled.success
@@ -104,13 +96,11 @@
       shell: pcs resource create floating_ip ocf:heartbeat:IPaddr2 ip={{ floating_ip }} cidr_netmask=32 op monitor interval=60s && touch floating_ip.success
       args:
         creates: floating_ip.success
-      #when: ansible_hostname == 'cnode1'
 
     - name: Add http server resource
       shell: pcs resource create http_server ocf:heartbeat:nginx configfile="/etc/nginx/nginx.conf" op monitor timeout="20s" interval="60s" && touch http.success
       args:
         creates: http.success
-      #when: ansible_hostname == 'cnode1'
 
     - firewalld:
         service: "{{ item }}"
