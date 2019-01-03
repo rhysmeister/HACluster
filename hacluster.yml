@@ -8,10 +8,23 @@
         - corosync
         - pacemaker
         - pcs
+        - crmsh
       cluster_name: hacluster
       floating_ip: 192.168.44.99
+      additional_packages:
+        - wget
 
     tasks:
+
+    - name: Ensure additional packages are installed
+      yum:
+        name: "{{ additional_packages }}"
+        state: installed
+
+    - name: Ensure crmsh repo has been setup
+      script: files/crmsh_repo.sh
+      args:
+        creates: /etc/yum.repo.d/network:ha-clustering:Stable.repo
 
     - name: Ensure /etc/hosts is setup
       template:
@@ -88,7 +101,7 @@
         creates: cluster_services.success
 
     - name: Add a floating ip
-      shell: pcs resource create floating_ip ocf:heartbeat:IPaddr2 ip={{ floating_ip }} cidr_netmask=24 op monitor interval=60s && touch floating_ip.success
+      shell: pcs resource create floating_ip ocf:heartbeat:IPaddr2 ip={{ floating_ip }} cidr_netmask=32 op monitor interval=60s && touch floating_ip.success
       args:
         creates: floating_ip.success
       #when: ansible_hostname == 'cnode1'
