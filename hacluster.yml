@@ -46,16 +46,35 @@
         name: nginx
         state: present
 
+    - name: Ensure firewall rules exist
+      firewalld:
+        service: "{{ item }}"
+        permanent: yes
+        state: enabled
+        immediate: yes
+      with_items:
+        - http
+        - https
+        - high-availability
+
     - name: Ensure clustering software is installed
       yum:
         name: "{{ clustering_packages }}"
         state: present
 
-    - name: Ensure the pcs service is enabled
+    - name: Ensure clustering services are enabled at boot
+      service:
+        name: "{{ item }}"
+        enabled: yes
+      with_items:
+        - pcsd
+        - corosync
+        - pacemaker
+
+    - name: Ensure pcsd is started
       service:
         name: pcsd
         state: started
-        enabled: yes
 
     - name: Ensure the password for the hacluster user is syncronised
       user:
@@ -72,53 +91,70 @@
         var: host_list
       run_once: yes
 
-    - name: Setup the cluster authentication
+    - name: Setup the cluster authentication (Should only need to run on one host)
       shell: pcs cluster auth {{ host_list }} -u hacluster -p SecretPasswordReallyShouldbeinVault --force && touch cluster_auth.success
       args:
         creates: cluster_auth.success
+      when: ansible_hostname == "cnode1"
 
-    - name: Setup the cluster
+    - name: Setup the cluster (Should only need to run on one host)
       shell: pcs cluster setup --name {{ cluster_name }} {{ host_list }} && touch cluster.success
       args:
         creates: cluster.success
+      when: ansible_hostname == "cnode1"
 
-    - name: Enable all cluster services
+    - name: Enable all cluster services (Should only need to run on one host)
       shell: pcs cluster enable --all && touch cluster_enabled.success
       args:
         creates: cluster_enabled.success
+      when: ansible_hostname == "cnode1"
 
-    - name: Ensure the cluster services have started the first time
+    - name: Ensure the cluster services have started the first time (Should only need to run on one host)
       shell: pcs cluster start --all && touch cluster_services.success
       args:
         creates: cluster_services.success
+      when: ansible_hostname == "cnode1"
 
-    - name: Add a floating ip
+    - name: Add a floating ip (Should only need to run on one host)
       shell: pcs resource create floating_ip ocf:heartbeat:IPaddr2 ip={{ floating_ip }} cidr_netmask=32 op monitor interval=60s && touch floating_ip.success
       args:
         creates: floating_ip.success
+      when: ansible_hostname == "cnode1"
 
-    - name: Add http server resource
+    - name: Add http server resource (Should only need to run on one host)
       shell: pcs resource create http_server ocf:heartbeat:nginx configfile="/etc/nginx/nginx.conf" op monitor timeout="20s" interval="60s" && touch http.success
       args:
         creates: http.success
+      when: ansible_hostname == "cnode1"
 
-    - firewalld:
-        service: "{{ item }}"
-        permanent: yes
-        state: enabled
-      with_items:
-        - http
-        - high-availability
-
-    - name: Ensure stonith is disabled
+    - name: Ensure stonith is disabled (Should only need to run on one host)
       shell: pcs property set stonith-enabled=false && touch stonith.success
       args:
         creates: stonith.success
+      when: ansible_hostname == "cnode1"
 
-    - name: Ensure quorum is disabled
+    - name: Ensure quorum is disabled (Should only need to run on one host)
       shell: pcs property set no-quorum-policy=ignore && touch no_quorum.success
       args:
         creates: no_quorum.success
+      when: ansible_hostname == "cnode1"
+
+    - name: Ensure colocation constraint is added
+      shell: pcs constraint colocation add http_server floating_ip INFINITY && touch colocation.success
+      args:
+        creates: colocation.success
+      when: ansible_hostname == "cnode1"
+
+    - name: Ensure order constraint is added
+      shell: pcs constraint order floating_ip then http_server && touch order.success
+      args:
+        creates: order.success
+      register: order_constraint
+      when: ansible_hostname == "cnode1"
+
+    - name: Restart the cluster if required
+      shell: pcs cluster stop --all && pcs cluster start --all
+      when: order_constraint.changed == True
 
     - name: Ensure page for each node exists
       copy:

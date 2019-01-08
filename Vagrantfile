@@ -3,7 +3,8 @@ Vagrant.configure("2") do |config|
   (1..HOSTS).each do |cluster_node|
     node_name = "cnode#{cluster_node}"
     config.vm.define node_name do |cnode|
-        cnode.vm.box = "centos/7"
+        #cnode.vm.box = "centos/7"
+        cnode.vm.box = "generic/centos7"
         cnode.vm.network "private_network", ip: "192.168.44.#{100 + cluster_node}"
         cnode.vm.hostname = node_name
         cnode.vm.provider :virtualbox do |vbox|
@@ -16,6 +17,7 @@ Vagrant.configure("2") do |config|
         # All vms have been provisioned. Run Ansible
         if cluster_node == HOSTS
             cnode.vm.provision :ansible do |ansible|
+            ansible.verbose = true
             ansible.limit = "all" # Connect to all machines
             ansible.playbook = "hacluster.yml"
         end
