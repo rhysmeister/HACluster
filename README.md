@@ -1,5 +1,5 @@
 # HACluster
-A HA Cluster using pacemaker on CentOS 7
+A HA Cluster using pacemaker on CentOS . The master branch of this git project is not maintained. Do a git branch to view the available branches.
 
 # Useful links
 
