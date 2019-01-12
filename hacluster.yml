@@ -127,18 +127,6 @@
         creates: http.success
       when: ansible_hostname == "cnode1"
 
-    - name: Ensure stonith is disabled (Should only need to run on one host)
-      shell: pcs property set stonith-enabled=false && touch stonith.success
-      args:
-        creates: stonith.success
-      when: ansible_hostname == "cnode1"
-
-    - name: Ensure quorum is disabled (Should only need to run on one host)
-      shell: pcs property set no-quorum-policy=ignore && touch no_quorum.success
-      args:
-        creates: no_quorum.success
-      when: ansible_hostname == "cnode1"
-
     - name: Ensure colocation constraint is added
       shell: pcs constraint colocation add http_server floating_ip INFINITY && touch colocation.success
       args:
