@@ -1,5 +1,6 @@
 # HACluster
-A HA Cluster using pacemaker on CentOS 7
+
+A HA Cluster using pacemaker on CentOS 7. This branch is a 2 node cluster with no quorum and no stonith.
 
 # Useful links
 
