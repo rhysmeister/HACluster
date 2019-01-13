@@ -1,5 +1,5 @@
 Vagrant.configure("2") do |config|
-  HOSTS=2
+  HOSTS=5
   (1..HOSTS).each do |cluster_node|
     node_name = "cnode#{cluster_node}"
     config.vm.define node_name do |cnode|
@@ -10,7 +10,7 @@ Vagrant.configure("2") do |config|
         cnode.vm.provider :virtualbox do |vbox|
             vbox.linked_clone = true
             vbox.name = node_name
-            vbox.memory = 2560
+            vbox.memory = 2096
             vbox.cpus = 1
         end
         cnode.vm.synced_folder '.', '/vagrant', disabled: true
