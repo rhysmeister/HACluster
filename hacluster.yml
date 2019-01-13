@@ -13,6 +13,12 @@
       floating_ip: 192.168.44.99
       additional_packages:
         - wget
+      fencing_agents:
+        - fence-virt
+        - fence-virtd
+        - fence-virtd-libvirt
+        - fence-virtd-multicast
+        - fence-virtd-serial
 
     tasks:
 
@@ -20,6 +26,41 @@
       yum:
         name: "{{ additional_packages }}"
         state: installed
+
+    - name: Ensure fencing agents are installed
+      yum:
+        name: "{{ fencing_agents }}"
+        state: present
+
+    - name: Ensure cluster directory exists
+      file:
+        path: /etc/cluster
+        state: directory
+
+    - name: Create a unique fence key for each node
+      shell: "dd if=/dev/urandom of=files/fence_xvm.key bs=4k count=1"
+      args:
+        creates: "/etc/cluster/fence_xvm.key"
+      run_once: yes
+      become: no
+      delegate_to: localhost
+
+    - name: Copy all node files to each host
+      copy:
+        src: "{{ item }}"
+        dest: /etc/cluster
+      with_fileglob: files/fence_xvm.key
+
+    - name: Ensure the fencing config file exists
+      template:
+        src: templates/fence_virt.conf.j2
+        dest: /etc/fence_virt.conf
+
+    - name: Ensure the fence_virtd service is started
+      service:
+        name: fence_virtd
+        state: started
+        enabled: yes
 
     - name: Ensure crmsh repo has been setup
       script: files/crmsh_repo.sh
@@ -56,6 +97,16 @@
         - http
         - https
         - high-availability
+
+    - name: Ensure port for multicast fencing is open
+      firewalld:
+        port: "{{ item }}"
+        permanent: yes
+        state: enabled
+        immediate: yes
+      with_items:
+        - 1229/tcp
+        - 1229/udp
 
     - name: Ensure clustering software is installed
       yum:
